@@ -1,25 +1,11 @@
 import pickle
-import numpy as np
 
 class ModelService:
     def __init__(self):
-        self.model = pickle.load(open("models/model.pkl", "rb"))
-        self.vectorizer = pickle.load(open("models/vectorizer.pkl", "rb"))
+        self.model = pickle.load(open("models/final_model.pkl", "rb"))
 
-    def predict(self, text: str):
-        # TEXT → TF-IDF
-        vec = self.vectorizer.transform([text]).toarray()
+    def predict(self, features):
+        prediction = self.model.predict(features)[0]
+        prob = self.model.predict_proba(features)[0][1]  # fake probability
 
-        # EXTRA FEATURES (same as training)
-        review_length = len(text)
-        word_count = len(text.split())
-
-        extra = np.array([[review_length, word_count]])
-
-        # COMBINE
-        final_input = np.hstack((vec, extra))
-
-        # PREDICT
-        prob = self.model.predict_proba(final_input)[0][1]
-
-        return prob
+        return prediction, prob
