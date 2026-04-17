@@ -1,109 +1,76 @@
 from fastapi import APIRouter
 from app.schemas.request_schema import ReviewRequest
 from app.services.model_service import ModelService
-from app.services.preprocess_service import prepare_features
 
 router = APIRouter()
 model_service = ModelService()
 
+
 @router.post("/predict")
 def predict_review(data: ReviewRequest):
     try:
-        text = data.review.lower()
+        text = data.review_text or ""
+        text_lower = text.lower()
 
         # =========================
         # RULE 1: TOO SHORT
         # =========================
-        if len(text.split()) < 3:
+        if len(text_lower.split()) < 3:
             return {
-                "prediction": "Fake",
-                "fake_score": 0.7,
-                "reason": "Too short review"
+                "fake_probability": 0.7,
+                "status": "Fake",
+                "scores": {
+                    "nlp": 0,
+                    "behavior": 0,
+                    "time": 0
+                },
+                "reasons": ["Too short review"]
             }
 
         # =========================
         # RULE 2: SUSPICIOUS PATTERNS
         # =========================
         suspicious_patterns = [
-
-            # 🔥 Over-hype / fake positive
-            "best ever", "must buy", "must purchase",
-            "everyone should buy", "everyone must buy",
-            "all should buy", "all must buy",
-            "everyone needs this", "you need this",
-            "buy this right now", "don't miss this",
+            "best ever", "must buy", "everyone should buy",
             "10/10", "100%", "perfect product",
-            "life changing", "worth every penny",
-            "you won't regret", "highly recommend to everyone",
-            "best thing i have ever bought",
-            "this changed my life",
-
-            # 🔥 Repetition / spam
-            "very very good", "so so good",
-            "amazing amazing", "good good",
-            "best best", "nice nice",
-            "super super", "too too good",
-
-            # 🔥 Marketing / promotion
+            "very very good", "amazing amazing",
             "limited time offer", "hurry up",
-            "best seller", "top product",
-            "guaranteed results", "exclusive deal",
-            "offer ends soon", "click now",
-
-            # 🔥 Emotional exaggeration
-            "i am so happy", "so so happy",
-            "extremely satisfied", "super happy",
-            "i love this so much",
-            "i can't believe how good this is",
-
-            # 🔥 Forced influence language
-            "everyone should buy", "no one should miss",
-            "everyone must try", "you must try this",
-            "you have to buy this",
-            "everyone should have this",
-
-            # 🔥 Too negative (fake hate)
-            "worst ever", "do not buy",
-            "never buy this", "avoid this product",
-            "waste of money", "totally useless",
-            "very bad product", "fake product",
-            "scam", "fraud product",
-            "completely useless", "not worth it",
-
-            # 🔥 Extreme emotional hate
-            "i hate this so much",
-            "this ruined everything",
-            "biggest mistake ever",
-            "worst purchase of my life"
+            "worst ever", "do not buy", "scam"
         ]
 
-        if any(pattern in text for pattern in suspicious_patterns):
+        if any(pattern in text_lower for pattern in suspicious_patterns):
             return {
-                "prediction": "Fake",
-                "fake_score": 0.85,
-                "reason": "Suspicious or promotional language"
+                "fake_probability": 0.85,
+                "status": "Fake",
+                "scores": {
+                    "nlp": 0,
+                    "behavior": 0,
+                    "time": 0
+                },
+                "reasons": ["Suspicious or promotional language"]
             }
 
         # =========================
-        # RULE 3: TOO MANY EXCLAMATIONS 🚩
+        # RULE 3: TOO MANY EXCLAMATIONS
         # =========================
-        if text.count("!") >= 3:
+        if text_lower.count("!") >= 3:
             return {
-                "prediction": "Fake",
-                "fake_score": 0.8,
-                "reason": "Excessive excitement (spam-like)"
+                "fake_probability": 0.8,
+                "status": "Fake",
+                "scores": {
+                    "nlp": 0,
+                    "behavior": 0,
+                    "time": 0
+                },
+                "reasons": ["Excessive excitement (spam-like)"]
             }
 
         # =========================
-        # MODEL PREDICTION
+        # HYBRID MODEL CALL
         # =========================
-        features = prepare_features(text)
-        prediction, score = model_service.predict(features)
+        result = model_service.predict(data)
 
-        return {
-            "prediction": "Fake" if prediction == 1 else "Genuine",
-            "fake_score": float(score)
-        }
+        return result
 
     except Exception as e:
         return {"error": str(e)}
